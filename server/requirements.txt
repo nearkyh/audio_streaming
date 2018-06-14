@@ -4,5 +4,6 @@ watson-developer-cloud==0.26.1
 boto3
 awscli
 ffmpy
+pyaudio
 
 

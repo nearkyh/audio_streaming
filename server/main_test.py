@@ -26,7 +26,7 @@ serverSocket.listen(5)
 
 def client_thread(sock):
     ### receive pcm data ###
-    start_pcm_recv = time.time()
+    start_time = time.time()
     data = clientSocket.recv(BUFF_SIZE)
     if data == b'rec':
         f = open('record', 'ab')
@@ -37,31 +37,31 @@ def client_thread(sock):
                 f.close()
                 break
             f.write(data)
-    pcm_recv_time = time.time() - start_pcm_recv
+    pcm_recv_time = time.time() - start_time
 
     ### pcm to wav ###
-    start_pcm2wav = time.time()
+    start_time = time.time()
     path = 'record'
     ff = FFmpeg(inputs={path: ['-f', 's16le', '-ar', '44100', '-ac', '2']},
                 outputs={''.join([path, '.wav']): '-y'})
     ff.run()
     os.unlink('record')
-    pcm2wav_time = time.time() - start_pcm2wav
+    pcm2wav = time.time() - start_time
 
     ### google stt ###
-    start_stt = time.time()
+    start_time = time.time()
     text = stt_conn.audio_stt('record.wav')
-    stt_time = time.time() - start_stt
+    stt_time = time.time() - start_time
 
     #### aibril conversation ###
-    start_conv = time.time()
+    start_time = time.time()
     answer = aibril_conn.aibril_conv(text)
-    conv_time = time.time() - start_conv
+    conv_time = time.time() - start_time
 
-    #### aws-polly tts && sending pcm data ###
+    #### aws-polly tts && pcm streaming ###
     data = 'tts'
     clientSocket.send(data.encode())
-    start_pcm_send = time.time()
+    start_time = time.time()
 
     polly = client("polly",
                    region_name="ap-northeast-2")
@@ -71,19 +71,20 @@ def client_thread(sock):
                                        VoiceId="Seoyeon")
     stream = response.get("AudioStream")
     data = stream.read()
+    print("pcm data length >>", len(data))
     clientSocket.sendall(data)
-    print("Success Polly PCM Streaming")
 
     data = 'end'
     clientSocket.send(data.encode())
-    pcm_send_time = time.time() - start_pcm_send
+    pcm_send_time = time.time() - start_time
 
     print("1. Received pcm data     >>", pcm_recv_time)
-    print("2. pcm to wav            >>", pcm2wav_time)
-    print("3. stt                   >>", stt_time)
-    print("4. conversation          >>", conv_time)
+    print("2. pcm to wav            >>", pcm2wav)
+    print("3. stt time              >>", stt_time)
+    print("4. conversation time     >>", conv_time)
     print("5. Sending pcm data(tts) >>", pcm_send_time)
 
+    clientSocket.close()
 
 if __name__ == '__main__':
     while True:

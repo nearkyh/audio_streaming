@@ -15,7 +15,7 @@ PORT = 7100
 ADDR = (HOST, PORT)
 BUFF_SIZE = 1024
 
-### send pcm data ###
+### recording, send pcm data ###
 audio = pyaudio.PyAudio()
 stream = audio.open(format=FORMAT,
                     channels=CHANNELS,
@@ -46,40 +46,40 @@ stream.close()
 audio.terminate()
 rec_time = time.time() - start_rec
 
-### receive pcm data ###
-def pcm2wav(path):
-    os.system(('ffmpeg -f s16le -ar 16000 -ac 1 -i {} -ar 44100 -ac 2 {}.wav -y').format(path, path))
+### receive pcm streaming ###
 data = clientSocket.recv(BUFF_SIZE)
 start_pcm_recv = time.time()
 if data == b'tts':
-    f = open('polly_tts', 'ab')
+    a = 0
     while True:
         data = clientSocket.recv(BUFF_SIZE)
+        a += len(data)
+        # print(data)
+        FORMAT2 = pyaudio.paInt16
+        CHUNK2 = 8129
+        CHANNELS2 = 1
+        RATE2 = 16000
+        audio2 = pyaudio.PyAudio()
+        stream2 = audio2.open(format=FORMAT2,
+                            channels=CHANNELS2,
+                            rate=RATE2,
+                            input=True,
+                            output=True,
+                            frames_per_buffer=CHUNK2)
+        stream2.write(data, CHUNK2)
         if data[-3:] == b'end':
-            f.write(data[:-3])
-            f.close()
+            stream2.write(data[-3:], CHUNK2)
+            stream2.stop_stream()
+            stream2.close()
             break
-        f.write(data)
+    print("pcm data length >>", a-len(data[-3:]))
 pcm_recv_time = time.time() - start_pcm_recv
-
-### pcm player ###
-# os.system('ffplay -autoexit -f s16le -ar 16000 -ac 1 polly_tts')
-
-### pcm to wav ###
-start_pcm2wav = time.time()
-pcm2wav('polly_tts')
-os.unlink('polly_tts')
-pcm2wav_time = time.time() - start_pcm2wav
 
 full_time = time.time() - start_rec
 
-### wav player ###
-os.system('aplay polly_tts.wav')
-
-print("1. Recording time         >>", rec_time)
-print("2. Waiting                >>", full_time-(rec_time+pcm_recv_time+pcm2wav_time))
-print("3. Received pcm data(tts) >>", pcm_recv_time)
-print("4. pcm to wav             >>", pcm2wav_time)
+print("1. Recording time >>", rec_time)
+print("2. Waiting        >>", full_time-(rec_time+pcm_recv_time))
+print("3. pcm streaming  >>", pcm_recv_time)
 
 clientSocket.close()
 
